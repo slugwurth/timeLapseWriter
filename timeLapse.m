@@ -54,6 +54,11 @@ classdef  timeLapse < handle
     methods
         
         function obj = prepVideo(obj,varargin)
+            % Accepts:
+            %       -obj of the class
+            %       -framerate (option)
+            % Sets obj.frate if included
+            % Builds the outputVideo
             
             if ~isempty(nargin); obj.frate = varargin; end
             
@@ -63,6 +68,10 @@ classdef  timeLapse < handle
         end
         
         function obj = compileVideo(obj)
+            % Accepts:
+            %       -obj of the class
+            % Opens, compiles, and closes the 
+            % current outputVideo to file
             
             % open the prepped file
             open(obj.outputVideo)
@@ -94,6 +103,12 @@ classdef  timeLapse < handle
         end
         
         function obj = matchCrop(obj,index,renderFlag)
+             % Accepts:
+            %       -obj of the class
+            %       -image index
+            %       -render flag
+            % Matches the current crop to indexed image
+            % Can output xcorrelate, superimposed, etc
             
             % assign variables
             crop = obj.cropped;
