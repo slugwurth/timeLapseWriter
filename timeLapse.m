@@ -6,31 +6,49 @@ classdef  timeLapse
     % search, looping etc
     
     % Pass an output filename and framerate to the constructor to produce
-    % an uncompressed avi video
+    % a lossless avi video
     
     properties
-        video
+        name
+        imageNames
+        frate
     end
     
+    % Class Constructor
     methods
-        function obj = timeLapse(outputFilename,framerate)
-            % Class Constructor
-            obj.video = outputFilename;
-            % Initialize output file
-            v = VideoWriter(outputFilename,'Uncompressed AVI', 'FrameRate', framerate);
-            open(v);
+        function obj = timeLapse(outputFilename,frate)
+            
+            obj.name = outputFilename;
+            obj.frate = frate;
             
             % Grab current directory contents
-            list = dir;
+            iNames = dir(fullfile(pwd,'*.jpg'));
+            obj.imageNames = {iNames.name}';
+            
+            % Compile video
+            obj = compileVideo(obj);
+        end
+    end
+    
+    % Future capabilities
+    methods 
+        
+        function obj = compileVideo(obj)
+            % Initialize output file
+            outputVideo = VideoWriter(fullfile(pwd,obj.name));
+            outputVideo.FrameRate = obj.frate;
+            open(outputVideo)
             
             % Add files sequentially
-            for ii = 3:size(list,1)
-                a = imread(list(ii).name);
-                writeVideo(v,a);
+            for ii = 1:length(obj.imageNames)
+                disp(['Frame ' num2str(ii) ' of ' num2str(length(obj.imageNames))]);
+                img = imread(fullfile(pwd,obj.imageNames{ii}));
+                writeVideo(outputVideo,img)
             end
             
             % close the file
-            close(v);
+            close(outputVideo);
+
         end
     end
 end
