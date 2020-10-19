@@ -120,6 +120,10 @@ classdef  timeLapse < handle
                     img = imread(fullfile(pwd,obj.imageNames{ii}));
                     writeVideo(obj.outputVideo,img);
                 end
+                if strcmp(mode, 'memory')
+                    img = obj.originals{ii};
+                    writeVideo(obj.outputVideo,img);
+                end
                 if strcmp(mode,'cropped')
                     img = obj.cropSet{ii};
                     writeVideo(obj.outputVideo,img);
@@ -154,8 +158,13 @@ classdef  timeLapse < handle
             % TODO: crop any image passed, not just from file
             
             if ~isempty(obj.currentWindow)
-                img = imread(char(obj.imageNames(index)));
-                obj.cropped = imcrop(img,obj.currentWindow);
+                if isempty(obj.originals)
+                    img = imread(char(obj.imageNames(index)));
+                    obj.cropped = imcrop(img,obj.currentWindow);
+                else
+                    img = obj.originals{index};
+                    obj.cropped = imcrop(img,obj.currentWindow);
+                end
             else
                 disp('Please set a window: obj.setCurrentWindow([xmin ymin dx dy])');
                 return
@@ -232,7 +241,10 @@ classdef  timeLapse < handle
             % assign the reference image from indexed set according to mode
            
             if strcmp(mode,'file')
-            obj.reference = ;
+            obj.reference = imread(char(obj.imageNames(index)));
+            end
+            if strcmp(mode,'memory')
+            obj.reference = obj.originals{index};
             end
             if strcmp(mode,'cropped')
             obj.reference = obj.cropSet{index};
@@ -247,6 +259,13 @@ classdef  timeLapse < handle
                 % assign variables
                 crop = obj.reference;
                 fullFrame = imread(char(obj.imageNames(index)));
+                % normalized cross-correllation
+                obj.xcorr = normxcorr2(crop(:,:,1),fullFrame(:,:,1));
+            end
+            if strcmp(mode, 'memory')
+                % assign variables
+                crop = obj.reference;
+                fullFrame = obj.originals{index};
                 % normalized cross-correllation
                 obj.xcorr = normxcorr2(crop(:,:,1),fullFrame(:,:,1));
             end
@@ -294,6 +313,9 @@ classdef  timeLapse < handle
         function obj = alignImage(obj,index,mode)
             if strcmp(mode,'file')
             obj.aligned = imread(char(obj.imageNames(index)));
+            end
+            if strcmp(mode,'memory')
+            obj.reference = obj.originals{index};
             end
             if strcmp(mode,'cropped')
             obj.reference = obj.cropSet{index};
