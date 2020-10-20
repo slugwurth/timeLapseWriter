@@ -13,6 +13,7 @@ classdef  timeLapse < handle
         frate
         imageNames
         originals
+        outputVideo
         
         numImg
         
@@ -30,8 +31,8 @@ classdef  timeLapse < handle
         aligned
         alignSet
         
-        outputVideo
-        
+        frame
+        frameSet        
     end
     
     % Class Constructor
@@ -100,8 +101,9 @@ classdef  timeLapse < handle
             if nargin>1; obj.frate = varargin{1}; end
             
             % Initialize output file
-            obj.outputVideo = VideoWriter(fullfile(pwd,obj.name),'MPEG-4');
+            obj.outputVideo = VideoWriter(fullfile(pwd,obj.name),'Motion JPEG AVI');
             obj.outputVideo.FrameRate = obj.frate;
+            obj.outputVideo.Quality = 50;
         end
         
         function obj = compileVideo(obj,mode)
@@ -189,7 +191,7 @@ classdef  timeLapse < handle
             end
         end
         
-        function obj = matchCrop(obj,index,renderFlag)
+        function obj = matchCrop(obj,index,mode,renderFlag)
             % Accepts:
             %       -obj of the class
             %       -image index
@@ -199,7 +201,17 @@ classdef  timeLapse < handle
             
             % assign variables
             crop = obj.cropped;
-            fullFrame = imread(char(obj.imageNames(index)));
+            switch mode
+                case 'file'
+                    fullFrame = imread(char(obj.imageNames(index)));
+                case 'memory'
+                    fullFrame = obj.originals{index};
+                case 'cropped'
+                    fullFrame = obj.cropSet{index};
+                case 'aligned'
+                    fullFrame = obj.alignSet{index};
+            end
+            
             % normalized cross-correllation
             c = normxcorr2(crop(:,:,1),fullFrame(:,:,1));
             % offset found by correlation
@@ -311,19 +323,150 @@ classdef  timeLapse < handle
         end
         
         function obj = alignImage(obj,index,mode)
+            
+             % load the the unregistered image
             if strcmp(mode,'file')
-            obj.aligned = imread(char(obj.imageNames(index)));
+                unReg = imread(char(obj.imageNames(index)));
             end
             if strcmp(mode,'memory')
-            obj.reference = obj.originals{index};
+                unReg =  obj.originals{index};
             end
             if strcmp(mode,'cropped')
-            obj.reference = obj.cropSet{index};
+                unReg = obj.cropSet{index};
             end
             if strcmp(mode,'aligned')
-            obj.reference = obj.alignSet{index};
+                unReg = obj.alignSet{index};
+            end
+            
+            % find the padding values
+            padding = obj.tranSet{index};
+            xpad = padding(2); ypad = padding(1);
+            
+            
+            if xpad < 0
+                xReg = unReg(1:end+xpad,:,:);
+                pad = zeros(abs(xpad),size(xReg,2),size(xReg,3));
+                xReg = vertcat(xReg,pad);
+            else
+                if xpad > 0
+                    xReg = unReg(xpad:end,:,:);
+                    pad = zeros(abs(xpad-1),size(xReg,2),size(xReg,3));
+                    xReg = vertcat(pad,xReg);
+                else
+                    % No movement
+                    xReg = unReg;
+                end
+            end
+            
+            
+            if ypad < 0
+                reg = xReg(:,1:end+ypad,:);
+                pad = zeros(size(xReg,1),abs(ypad),size(xReg,3));
+                reg = horzcat(reg,pad);
+            else
+                if ypad > 0
+                    reg = xReg(:,ypad:end,:);
+                    pad = zeros(size(xReg,1),abs(ypad-1),size(xReg,3));
+                    reg = horzcat(pad,reg);
+                else
+                    % No movement
+                    reg = xReg;
+                end
+            end
+            
+            obj.aligned = reg;
+        end
+        
+        function obj = alignAll(obj,mode)
+            
+             if ~isempty(obj.tranSet)
+                for ii = 1:obj.numImg
+                    disp(['Aligning Frame ' num2str(ii) ' of ' num2str(obj.numImg)]);
+                    obj = alignImage(obj,ii,mode);
+                    obj.alignSet{ii} = obj.aligned;
+                end
+            else
+                disp('Please cross-correlate all images to the reference: obj.xcorrAll(obj,mode)');
+                return
             end
         end
+    end
+    
+    % image rendering
+    methods
+        function obj = renderFrame(obj,index,rFlag)
+            % Renders all available data for specified index
+            
+            % prep shift plot data out
+            shift = obj.tranSet{index};
+            xShift = shift(1:2:end-1); yShift = shift(2:2:end);
+            
+            % toggle rendering
+            if (rFlag)
+                f = figure();
+            else
+                f = figure('visible','off');
+            end
+            sgtitle(['Frame ' num2str(index) ' of ' num2str(obj.numImg)])
+            
+            subplot(3,2,1)
+            if ~isempty(obj.originals)
+                imshow(obj.originals{index});
+                hDim = size(obj.originals{index},2); vDim = size(obj.originals{index},1);
+                pbaspect([hDim vDim 1]);
+                title('Orignal');
+            else
+                text(0,0,'no fullframe data');
+            end
+            
+            subplot(3,2,2)
+            if ~isempty(obj.cropSet)
+                imshow(obj.cropSet{index});
+                title('Current Crop');
+            end
+            
+            subplot(3,2,3)
+            if ~isempty(obj.xcorrSet)
+                imshow(obj.xcorrSet{index});
+                hDim = size(obj.reference,2); vDim = size(obj.reference,1);
+                pbaspect([hDim vDim 1]);
+                title('xCorr2')
+            end
+            
+            subplot(3,2,4)
+            if ~isempty(obj.alignSet)
+                imshow(obj.alignSet{index});
+                title('Aligned');
+            end
+            
+            subplot(3,2,5)
+            if ~isempty(shift)
+                scatter(xShift,yShift,'filled');
+                pbaspect([1 1 1]);
+                title('Alignment');
+            end
+            subplot(3,2,6)
+            if ~isempty(obj.reference)
+                imshow(obj.reference);
+                title('Reference');
+            end
+            
+            % save to frame property
+            f = getframe(gcf);
+            obj.frame = frame2im(f);
+        end
+        
+        function obj = renderAll(obj)
+            
+            for ii = 1:obj.numImg
+                disp(['Rendering Frame ' num2str(ii) ' of ' num2str(obj.numImg)]);
+                renderFrame(obj,ii,0);
+                obj.frameSet{ii} = obj.frame;
+                clf;
+            end
+            
+        end
+        
     end
 end
 

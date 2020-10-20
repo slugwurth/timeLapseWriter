@@ -1,16 +1,21 @@
 clear all
 close all
 
-a = timeLapse('sma.mp4',10);
+a = timeLapse('raw30fps',30,0);
 
-w = [800 400 1960 1301];
+a.prepVideo();
+a.compileVideo('file');
+
+w = [840 1110 2500 2040];
 wind = [w(1) w(2) w(3)-w(1) w(4)-w(2)];
 
 a.setCurrentWindow(wind)
 a.cropAll();
 
 a.prepAlign(10,'cropped')
-a.xcorrImage(100,'cropped')
+a.xcorrAll('cropped')
+
+a.alignAll('cropped')
 
 figure(); contourf(a.xcorr'); pbaspect([size(a.reference,2) size(a.reference,1) 1]);
 figure(); imshow(a.reference);
